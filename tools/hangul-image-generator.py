@@ -9,6 +9,7 @@ from PIL import Image, ImageFont, ImageDraw
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 
+# download fonts from: https://software.naver.com/software/fontList.nhn?categoryId=I0000000
 
 SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 

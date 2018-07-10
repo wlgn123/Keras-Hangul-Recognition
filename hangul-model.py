@@ -1,7 +1,6 @@
 import io
 import pandas as pd
 import numpy as np
-import cv2 as cv2
 from keras.preprocessing.image import img_to_array, load_img
 from keras.utils.np_utils import to_categorical   
 from keras.models import Sequential
@@ -17,7 +16,7 @@ image_data = "image-data/labels-map.csv"
 
 NO_CLASSES = 2350		# Number of Hangul characters we are classifying
 BATCH_SIZE = 100		# Size of each training batch
-EPOCHS = 50				# Number of epochs to run
+EPOCHS = 300			# Number of epochs to run
 IMAGE_WIDTH = 64		# Width of each character in pixels
 IMAGE_HEIGHT = 64		# Height of each character in pixels
 TRAIN_TEST_SPLIT = 0.75 # Percentage of images to use in training. Rest is used in testing
@@ -25,14 +24,14 @@ TRAIN_TEST_SPLIT = 0.75 # Percentage of images to use in training. Rest is used 
 
 # Prepares x_train and y_train datasets. Converts labels to onehot and jpegs to numpy arrays
 def create_dataset():
-	# load data into local numpy arrays
+# load data into local numpy arrays
 	data = pd.read_csv(image_data, header = None, encoding = "utf-8").values # read in image-label mapping file with no header
 	allLabels = io.open(label_file, 'r', encoding='utf-8').read().splitlines() # get all possible labels 
 	features, labels = data[:, :-1], data[:, -1]
 	labels = data[:, -1]
 
 	features_as_array = np.zeros((len(features), 64, 64, 1)) # image shape is 64 x 64 pixels, 1 channel
-	
+
 	# loop through all features labels, replace label with int representing its indice position with corresponding char in allLabels
 	count = 0
 	#for i in range(len(label)):
@@ -74,21 +73,20 @@ def split_dataset(features, labels):
 
 # Get hangul image jpeg, convert to numpy array and return array
 def get_img_as_array(path):
-    img_jpeg = load_img(path, grayscale = True)
-    img_array = img_to_array(img_jpeg)
-    return img_array
+	img_jpeg = load_img(path, grayscale = True)
+	img_array = img_to_array(img_jpeg)
+	return img_array
 
 
 # Define the CNN
 def main():
+	features, labels = create_dataset() # generate training data
+	x_train, y_train, x_test, y_test = split_dataset(features, labels) # Split training data
 
- 	features, labels = create_dataset() # generate training data
- 	x_train, y_train, x_test, y_test = split_dataset(features, labels) # Split training data
- 	
- 	# Define Model 
+	# Define Model
 	model = Sequential() 
-
-	model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu'))
+	model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1), 
+	activation='relu'))
 	model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding = 'same'))
 
 	model.add(Conv2D(64, (5, 5), activation='relu'))
@@ -104,23 +102,18 @@ def main():
 	model.add(Dense(NO_CLASSES, activation = 'softmax')) # classification layer
 
 	model.compile(loss=losses.categorical_crossentropy,
-	            optimizer=optimizers.Adadelta(),
-            	metrics=['accuracy'])
+	optimizer=optimizers.Adadelta(),
+	metrics=['accuracy'])
 
 	model.fit(x_train, y_train,
-          batch_size=100,
-          epochs=10,
-          verbose=1,
-          validation_data=(x_test, y_test))
+	batch_size=100,
+	epochs=100,
+	verbose=1,
+	validation_data=(x_test, y_test))
 
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test loss:', score[0])
 	print('Test accuracy:', score[1])
 
-if __name__ == '__main__':
+if __name__ == '__main__': 
 	main()
-
-
-
-
-

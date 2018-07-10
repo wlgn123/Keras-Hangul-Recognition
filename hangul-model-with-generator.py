@@ -1,7 +1,6 @@
 import io
 import pandas as pd
 import numpy as np
-import cv2 as cv2
 from keras.preprocessing.image import img_to_array, load_img
 from keras.utils.np_utils import to_categorical   
 from keras.models import Sequential
@@ -11,6 +10,7 @@ from keras import backend as bk
 from keras import losses
 from keras import optimizers
 
+bk.tensorflow_backend._get_available_gpus()
 
 # Parameters
 label_file = "labels/2350-common-hangul.txt"
@@ -82,15 +82,15 @@ def generator(features, labels, batch_size):
 		    # choose random index in features
 		    index = np.random.choice(len(features),1)
 		    batch_features[i] = get_img_as_array(features[index][0][0])
-		    batch_labels[i] = to_categorical(labels[index], num_classes=NO_CLASSES)
-	   	yield batch_features, batch_labels
+		    batch_labels[i] = to_categorical(labels[index], num_classes=NO_CLASSES); 
+	yield batch_features, batch_labels
 
 # Define the CNN
 def main():
 
 	features, labels = get_dataset()
- 	x_train, y_train, x_test, y_test = split_dataset(features, labels) # get training to feed to generator
- 	train_generator = generator(x_train, y_train, batch_size=100)
+	x_train, y_train, x_test, y_test = split_dataset(features, labels) # get training to feed to generator
+	train_generator = generator(x_train, y_train, batch_size=100)
 	test_generator = generator(x_test, y_test, batch_size=100)
  	
  	# Define Model 
