@@ -19,7 +19,7 @@ DEFAULT_FONTS_DIR = os.path.join(SCRIPT_PATH, '../fonts')
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_PATH, '../image-data')
 
 # Number of random distortion images to generate per font and character.
-DISTORTION_COUNT = 0
+DISTORTION_COUNT = 3
 
 # Width and height of the resulting image.
 IMAGE_WIDTH = 64
@@ -28,6 +28,7 @@ IMAGE_HEIGHT = 64
 
 def generate_hangul_images(label_file, fonts_dir, output_dir):
     """Generate Hangul image files.
+
     This will take in the passed in labels file and will generate several
     images using the font files provided in the font directory. The font
     directory is expected to be populated with *.ttf (True Type Font) files.
@@ -88,6 +89,30 @@ def generate_hangul_images(label_file, fonts_dir, output_dir):
 
     print('Finished generating {} images.'.format(total_count))
     labels_csv.close()
+
+
+def elastic_distort(image, alpha, sigma):
+    """Perform elastic distortion on an image.
+
+    Here, alpha refers to the scaling factor that controls the intensity of the
+    deformation. The sigma variable refers to the Gaussian filter standard
+    deviation.
+    """
+    random_state = numpy.random.RandomState(None)
+    shape = image.shape
+
+    dx = gaussian_filter(
+        (random_state.rand(*shape) * 2 - 1),
+        sigma, mode="constant"
+    ) * alpha
+    dy = gaussian_filter(
+        (random_state.rand(*shape) * 2 - 1),
+        sigma, mode="constant"
+    ) * alpha
+
+    x, y = numpy.meshgrid(numpy.arange(shape[0]), numpy.arange(shape[1]))
+    indices = numpy.reshape(y+dy, (-1, 1)), numpy.reshape(x+dx, (-1, 1))
+    return map_coordinates(image, indices, order=1).reshape(shape)
 
 
 if __name__ == '__main__':
