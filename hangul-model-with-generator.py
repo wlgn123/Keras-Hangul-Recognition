@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from keras.preprocessing.image import img_to_array, load_img
 from keras.utils.np_utils import to_categorical   
+from sklearn.model_selection import train_test_split
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Activation, Dropout, Flatten, Dense
@@ -13,15 +14,15 @@ from keras import optimizers
 bk.tensorflow_backend._get_available_gpus()
 
 # Parameters
-label_file = "labels/2350-common-hangul.txt"
+label_file = "labels/60-common-hangul.txt"
 image_data = "image-data/labels-map.csv"
 
-NO_CLASSES = 2350		# Number of Hangul characters we are classifying
+NO_CLASSES = 60		# Number of Hangul characters we are classifying
 BATCH_SIZE = 100		# Size of each training batch
-EPOCHS = 50				# Number of epochs to run
+EPOCHS = 12				# Number of epochs to run
 IMAGE_WIDTH = 64		# Width of each character in pixels
 IMAGE_HEIGHT = 64		# Height of each character in pixels
-TRAIN_TEST_SPLIT = 0.75 # Percentage of images to use in training. Rest is used in testing
+TRAIN_TEST_SPLIT = 0.25 # Percentage of images to use in training. Rest is used in testing
 
 
 # Loads csv and image paths 
@@ -43,36 +44,13 @@ def get_dataset():
 
 	return features, labels
 
-# Split complete dataset according to TRAIN_TEST_SPLIT parameter
-def split_dataset(features, labels):
-	training = int(round(TRAIN_TEST_SPLIT * len(features))) # no. of features to use for training
-	testing = int(len(features) - training)	# no. of features to use for testing
-
-	# Create arrays to hold data
-	x_train = np.empty((training, 1), dtype = "S100")
-	y_train = np.zeros((training, 1))
-	x_test = np.empty((testing, 1), dtype = "S100")
-	y_test = np.zeros((testing, 1))
-
-	# split data... 
-	counter = 0
-	for i in range(len(features)):
-		if i < training:
-			x_train[i] = features[i][0]
-			y_train[i] = labels[i]
-		else:
-			x_test[counter] = features[i][0]
-			y_test[counter] = labels[i]
-			counter += 1
-	return x_train, y_train, x_test, y_test
-
 # Get hangul image jpeg, convert to numpy array 
 def get_img_as_array(path):
     img_jpeg = load_img(path, grayscale = True)
-    img_array = img_to_array(img_jpeg) / 255.0
+    img_array = img_to_array(img_jpeg) / 255
     return img_array
 
-# Gets batches of features and labels, converts JPEG to numpy and label to one_hot
+# Takes features and labels, converts JPEG to numpy and label to one_hot
 def generator(features, labels, batch_size):
  	# Create empty arrays to contain batch of features and labels
 	batch_features = np.zeros((batch_size, 64, 64, 1))
@@ -81,6 +59,8 @@ def generator(features, labels, batch_size):
 	  	for i in range(batch_size):
 		    # choose random index in features
 		    index = np.random.choice(len(features),1)
+		    print features[index][0][0]
+		    print labels[index]
 		    batch_features[i] = get_img_as_array(features[index][0][0])
 		    batch_labels[i] = to_categorical(labels[index], num_classes=NO_CLASSES); 
 	yield batch_features, batch_labels
@@ -89,9 +69,9 @@ def generator(features, labels, batch_size):
 def main():
 
 	features, labels = get_dataset()
-	x_train, y_train, x_test, y_test = split_dataset(features, labels) # get training to feed to generator
-	train_generator = generator(x_train, y_train, batch_size=100)
-	test_generator = generator(x_test, y_test, batch_size=100)
+	x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=TRAIN_TEST_SPLIT)
+	train_generator = generator(x_train, y_train, batch_size=BATCH_SIZE)
+	test_generator = generator(x_test, y_test, batch_size=BATCH_SIZE)
  	
  	# Define Model 
 	model = Sequential() 
@@ -118,15 +98,18 @@ def main():
 
 	model.fit_generator(generator = train_generator,
 						validation_data = test_generator,
-        				steps_per_epoch=1000,
-        				epochs=10)
+        				epochs=EPOCHS)
 
 	#score = model.evaluate(x_test, y_test, verbose=0)
 	#print('Test loss:', score[0])
 	#print('Test accuracy:', score[1])
 
 if __name__ == '__main__':
-	main()
+	features, labels = get_dataset()
+	x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=TRAIN_TEST_SPLIT)
+	train_generator = generator(x_train, y_train, batch_size=BATCH_SIZE)
+	test_generator = generator(x_test, y_test, batch_size=BATCH_SIZE)
+	#main()
 	
  	
 
