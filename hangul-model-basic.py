@@ -1,23 +1,32 @@
 import io
+import os
+
 import pandas as pd
 import numpy as np
+
 from keras.preprocessing.image import img_to_array, load_img
 from keras.utils.np_utils import to_categorical   
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Activation, Dropout, Flatten, Dense
-from keras import backend as bk
+from keras import backend as K
 from keras import losses
 from keras import optimizers
 
-# Parameters
-label_file = "labels/60-common-hangul.txt"
-image_data = "image-data/labels-map.csv"
+import tensorflow as tf
+from tensorflow.python.tools import freeze_graph
+from tensorflow.python.tools import optimize_for_inference_lib
 
-NO_CLASSES = 60			# Number of Hangul characters we are classifying
+
+# Parameters
+label_file = "labels/512-common-hangul.txt"
+image_data = "image-data/labels-map.csv"
+MODEL_NAME = 'hangul_convnet'
+
+NO_CLASSES = 512		# Number of Hangul characters we are classifying
 BATCH_SIZE = 100		# Size of each training batch
-EPOCHS = 30				# Number of epochs to run
+EPOCHS = 1				# Number of epochs to run
 IMAGE_WIDTH = 64		# Width of each character in pixels
 IMAGE_HEIGHT = 64		# Height of each character in pixels
 TRAIN_TEST_SPLIT = 0.25 # Percentage of images to use in testing. Rest is used in testing
@@ -48,6 +57,31 @@ def create_dataset():
 	one_hot_labels = to_categorical(labels, num_classes=len(allLabels))
 	return features_as_array, one_hot_labels
 
+# Function copied from github.com/llSourcell/A_Guide_to_Running_Tensorflow_Models_on_Android/blob/master/tensorflow_model/mnist_convnet_keras.py
+def export_model(saver, model, input_node_names, output_node_name):
+    tf.train.write_graph(K.get_session().graph_def, 'out', \
+        MODEL_NAME + '_graph.pbtxt')
+
+    saver.save(K.get_session(), 'out/' + MODEL_NAME + '.chkp')
+
+    freeze_graph.freeze_graph('out/' + MODEL_NAME + '_graph.pbtxt', None, \
+        False, 'out/' + MODEL_NAME + '.chkp', output_node_name, \
+        "save/restore_all", "save/Const:0", \
+        'out/frozen_' + MODEL_NAME + '.pb', True, "")
+
+    input_graph_def = tf.GraphDef()
+    with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
+        input_graph_def.ParseFromString(f.read())
+
+    output_graph_def = optimize_for_inference_lib.optimize_for_inference(
+            input_graph_def, input_node_names, [output_node_name],
+            tf.float32.as_datatype_enum)
+
+    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
+        f.write(output_graph_def.SerializeToString())
+
+    print("graph saved!")
+
 # Get hangul image jpeg, convert to numpy array and return array
 def get_img_as_array(path):
 	img_jpeg = load_img(path, grayscale = True)
@@ -55,14 +89,11 @@ def get_img_as_array(path):
 	return img_array
 
 # Define the CNN
-def main():
-	features, labels = create_dataset() # generate training data
-	x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=TRAIN_TEST_SPLIT)
+def main(x_train, x_test, y_train, y_test):
 
 	# Define Model
 	model = Sequential() 
-	model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1), 
-	activation='relu'))
+	model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1), activation='relu'))
 	model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding = 'same'))
 
 	model.add(Conv2D(64, (5, 5), activation='relu'))
@@ -77,19 +108,31 @@ def main():
 
 	model.add(Dense(NO_CLASSES, activation = 'softmax')) # classification layer
 
-	model.compile(loss=losses.categorical_crossentropy,
+	model.compile(loss=losses.categorical_crossentropy, 
 	optimizer=optimizers.Adadelta(),
 	metrics=['accuracy'])
 
-	model.fit(x_train, y_train,
+	model.fit(x_train, y_train, # train on train/testing data
 	batch_size=BATCH_SIZE,
 	epochs=EPOCHS,
 	verbose=1,
 	validation_data=(x_test, y_test))
 
-	score = model.evaluate(x_test, y_test, verbose=0)
+	score = model.evaluate(x_test, y_test, verbose=0) # evaluate model accuracy
 	print('Test loss:', score[0])
 	print('Test accuracy:', score[1])
 
-if __name__ == '__main__': 
-	main()
+	return model # return model for saving
+
+if __name__ == '__main__':
+
+	if not os.path.exists('out'):
+			os.mkdir('out')
+
+	features, labels = create_dataset() # generate training data
+
+	x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=TRAIN_TEST_SPLIT) # split data in training/testing batches 
+
+	model = main(x_train, x_test, y_train, y_test)
+
+	export_model(tf.train.Saver(), model, ["sequential_1_input"], "dense_2/Softmax") # save model as .pb for use on android
