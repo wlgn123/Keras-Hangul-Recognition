@@ -4,6 +4,8 @@ import os
 import pandas as pd
 import numpy as np
 
+from keras.models import load_model, Model
+
 from keras.preprocessing.image import img_to_array, load_img
 from keras.utils.np_utils import to_categorical   
 from sklearn.model_selection import train_test_split
@@ -17,6 +19,7 @@ from keras import optimizers
 import tensorflow as tf
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
+from tensorflow.core.framework import graph_pb2
 
 
 # Parameters
@@ -25,11 +28,11 @@ image_data = 'image-data/labels-map.csv'
 MODEL_NAME = 'hangul_convnet'
 
 NO_CLASSES = 10		# Number of Hangul characters we are classifying
-BATCH_SIZE = 30		# Size of each training batch
-EPOCHS = 1				# Number of epochs to run
+BATCH_SIZE = 50		# Size of each training batch
+EPOCHS = 14				# Number of epochs to run
 IMAGE_WIDTH = 64		# Width of each character in pixels
 IMAGE_HEIGHT = 64		# Height of each character in pixels
-TRAIN_TEST_SPLIT = 0.25 # Percentage of images to use in testing. Rest is used in testing
+TRAIN_TEST_SPLIT = 0.20 # Percentage of images to use in testing. Rest is used in testing
 
 
 # Prepares features and labels arrays. Converts labels to onehot and jpegs to numpy arrays (memory intensive)
@@ -57,10 +60,9 @@ def create_dataset():
 	one_hot_labels = to_categorical(labels, num_classes=len(allLabels))
 	return features_as_array, one_hot_labels
 
-# Function copied from github.com/llSourcell/A_Guide_to_Running_Tensorflow_Models_on_Android/blob/master/tensorflow_model/mnist_convnet_keras.py
+# Function copied: www.github.com/llSourcell/A_Guide_to_Running_Tensorflow_Models_on_Android/blob/master/tensorflow_model/mnist_convnet_keras.py
+# Includes semi-original code to remove dropout layer for inference on mobile: https://dato.ml/drop-dropout-from-frozen-model/
 def export_model(saver, model, input_node_names, output_node_name):
-
-	#K.set_learning_phase(0)
 
     tf.train.write_graph(K.get_session().graph_def, 'out', \
         MODEL_NAME + '_graph.pbtxt')
@@ -74,12 +76,30 @@ def export_model(saver, model, input_node_names, output_node_name):
 
     input_graph_def = tf.GraphDef()
     with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
-        input_graph_def.ParseFromString(f.read())
+    	input_graph_def.ParseFromString(f.read())
 
+	# print nodes in graph, locate the connections into and out of dropout layer
+	# for me, dropout starts at [41], ends at [64]
+	# this will be different for any other graph 
+    display_nodes(input_graph_def.node)
+
+	# connect '[68] dense_2/MatMul ' to '[41] dense_1/Relu ', remove dropout layer by connecting either end together
+    input_graph_def.node[68].input[0] = 'dense_1/Relu'
+    nodes = input_graph_def.node[:42] + input_graph_def.node[64:] 
+
+	# create new GraphDef using our modified graph with no dropout layer
+    input_graph_no_dropout = graph_pb2.GraphDef()
+    input_graph_no_dropout.node.extend(nodes)
+
+	# displaying the nodes we can see how the dropout layer has been removed entirely
+    # display_nodes(input_graph_no_dropout.node)
+
+	# optimise modified graph for inference
     output_graph_def = optimize_for_inference_lib.optimize_for_inference(
-            input_graph_def, input_node_names, [output_node_name],
+            input_graph_no_dropout, input_node_names, [output_node_name],
             tf.float32.as_datatype_enum)
 
+	# write to protobuff
     with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
         f.write(output_graph_def.SerializeToString())
     print("graph saved!")
@@ -110,7 +130,7 @@ def main(x_train, x_test, y_train, y_test):
 
 	model.add(Flatten())  # flattens feature map to 1-d tensor
 	model.add(Dense(1024, activation='relu'))
-	model.add(Dropout(0.5))
+	model.add(Dropout(0.5)) # removed to see if it works in android without it
 
 	model.add(Dense(NO_CLASSES, activation = 'softmax')) # classification layer
 
@@ -130,6 +150,11 @@ def main(x_train, x_test, y_train, y_test):
 
 	return model # return model for saving
 
+def display_nodes(nodes):
+    for i, node in enumerate(nodes):
+        print('%d %s %s' % (i, node.name, node.op))
+        [print(u'└─── %d ─ %s' % (i, n)) for i, n in enumerate(node.input)]
+
 if __name__ == '__main__':
 
 	if not os.path.exists('out'):
@@ -144,4 +169,6 @@ if __name__ == '__main__':
 	K.set_learning_phase(0)
 
 	export_model(tf.train.Saver(), model, ["sequential_1_input"], "dense_2/Softmax") # save model as .pb for use on android
+
+    
 	
