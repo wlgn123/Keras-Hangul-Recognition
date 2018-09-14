@@ -177,4 +177,4 @@ model.save('hangul_model_{}_characters.h5'.format(NO_CLASSES))
 # K.set_learning_phase(0)
 
 # save model as .pb for use on android
-# export_model(tf.train.Saver(), model, ["sequential_1_input"], "dense_2/Softmax")
+export_model(tf.train.Saver(), model, ["conv2d_1_input"], "dense_2/Softmax")
