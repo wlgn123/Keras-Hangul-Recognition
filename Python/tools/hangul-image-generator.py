@@ -17,12 +17,13 @@ SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 #DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/2350-common-hangul.txt')
 #DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/512-common-hangul.txt')
 #DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/60-common-hangul.txt')
-DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/10-common-hangul.txt')
+# DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/10-common-hangul.txt')
+DEFAULT_LABEL_FILE = os.path.join(SCRIPT_PATH, '../labels/2412-common-hangul-eng-num.txt')
 DEFAULT_FONTS_DIR = os.path.join(SCRIPT_PATH, '../fonts')
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_PATH, '../image-data')
 
 # Number of random distortion images to generate per font and character.
-DISTORTION_COUNT = 3
+DISTORTION_COUNT = 4
 
 # Width and height of the resulting image.
 IMAGE_WIDTH = 64
